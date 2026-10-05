@@ -131,7 +131,6 @@
   <footer>
     {#if health?.raveld}
       <div><span class="dot live"></span>raveld {health.raveld.version} · {health.raveld_url.replace('http://', '')}</div>
-      <div class="sub" title="memory index spend, as raveld reports it">memory index: {health.raveld.memory}</div>
     {:else}
       <div><span class="dot dead"></span>raveld not answering</div>
       <div class="sub">{health?.error ?? 'checking…'}</div>

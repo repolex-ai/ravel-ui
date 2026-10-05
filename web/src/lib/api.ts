@@ -69,7 +69,6 @@ export interface Health {
   raveld: {
     ok: boolean
     version: string
-    memory: string
     souls: string[]
     uptime_secs: number
   } | null

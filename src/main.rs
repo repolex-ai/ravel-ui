@@ -126,7 +126,14 @@ fn check(id: &str) -> Result<(), Response> {
 /// feed died.
 async fn api_health(State(s): S) -> Response {
     match s.raveld.get("/health").await {
-        Ok(h) => Json(json!({ "raveld": h, "raveld_url": s.raveld.port_url() })).into_response(),
+        Ok(mut h) => {
+            // raveld's health includes the memory index's API spend. That is
+            // not this page's business, so it never reaches the browser.
+            if let Some(o) = h.as_object_mut() {
+                o.remove("memory");
+            }
+            Json(json!({ "raveld": h, "raveld_url": s.raveld.port_url() })).into_response()
+        }
         Err(e) => Json(json!({ "raveld": null, "raveld_url": s.raveld.port_url(), "error": e })).into_response(),
     }
 }

@@ -1,0 +1,27 @@
+[package]
+name = "ravel-ui"
+version = "0.1.0"
+edition = "2024"
+description = "A front door to every ravel soul on the machine"
+license = "Unlicense"
+repository = "https://github.com/repolex-ai/ravel-ui"
+
+[[bin]]
+name = "ravel-ui"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal", "net"] }
+clap = { version = "4", features = ["derive", "wrap_help"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+# http-only: every hop this binary makes is to 127.0.0.1.
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+futures-util = "0.3"
+open = "5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

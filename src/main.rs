@@ -169,11 +169,26 @@ async fn api_souls(State(s): S) -> Response {
             rv.select(&id, &q).await.map(|rows| rows.into_iter().next().unwrap_or_default())
         }
     });
-    let counts = futures_util::future::join_all(jobs).await;
+    // How far the memory index has got through each soul's turns. Asked
+    // alongside the counts: an index that has read most of a soul and one
+    // that has read all of it draw the same tree and mean different things.
+    let progress = souls.iter().map(|soul| {
+        let id = soul.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
+        let rv = s.raveld.clone();
+        async move {
+            if !valid_id(&id) {
+                return Value::Null;
+            }
+            rv.get(&format!("/souls/{id}/memory-progress")).await.unwrap_or(Value::Null)
+        }
+    });
+    let (counts, progress) =
+        tokio::join!(futures_util::future::join_all(jobs), futures_util::future::join_all(progress));
     let out: Vec<Value> = souls
         .iter()
         .zip(counts)
-        .map(|(soul, c)| {
+        .zip(progress)
+        .map(|((soul, c), progress)| {
             let path = soul.get("path").and_then(Value::as_str).unwrap_or_default();
             let name = path.rsplit('/').next().unwrap_or(path);
             let num = |row: &serde_json::Map<String, Value>, k: &str| {
@@ -200,6 +215,7 @@ async fn api_souls(State(s): S) -> Response {
                 "first": first,
                 "last": last,
                 "index_error": index_error,
+                "progress": progress,
             })
         })
         .collect();

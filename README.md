@@ -36,10 +36,11 @@ For frontend work, run `npm run dev` in `web/` as well. Vite serves the page on
 - **Left:** every soul raveld holds, grouped into souls with a memory index, souls not indexed
   yet, and the demo props. Below that, a search over the selected soul's memories and summaries.
 - **Middle:** the memory tree as a timeline. Time runs left to right. The bottom row is single
-  memories, one tick each, in the hour they happened. Each row above summarizes windows twice as
-  long as the row below. Scroll to zoom, drag to pan, double-click to fit. Selecting a node darkens
+  memories, one tick each, at the moment they happened. Each row above summarizes windows twice as
+  long as the row below. Scroll to zoom, drag to pan, double-click to fit. The soul's startup view
+  (what `ravel memory` prints) is coloured on top, ochre for its oldest lines and green for now. Selecting a node darkens
   the windows that contain it and the nodes it covers.
-- **Right:** the selected node's text, the summaries it sits inside, and what it was made from:
+- **Right:** with nothing selected, what the startup view costs, by level. With a node selected, its text, the summaries it sits inside, and what it was made from:
   the windows a summary covers, or the source turns a memory was read from.
 
 The address bar carries the soul and the selection (`#e3d71e/m886192468fecb91`), so a view of

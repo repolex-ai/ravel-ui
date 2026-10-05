@@ -14,6 +14,16 @@ export interface Soul {
   first: string | null
   last: string | null
   index_error: string | null
+  progress: Progress | null
+}
+
+export interface Progress {
+  turns: number
+  turns_read: number
+  memories: number
+  summary_windows: number
+  pending_windows: number
+  done: boolean
 }
 
 export interface Tree {
@@ -36,6 +46,12 @@ export interface Line {
   from: string
   to: string
   text: string
+  /** Startup view only: a window with no current summary yet. */
+  pending?: boolean
+  /** Startup view only: why raveld chose this line. 'age' is kept whole by
+   *  the age rule, 'present' is leftover budget spent near now, 'opened' is
+   *  shown because the window above has no current summary. */
+  rule?: 'age' | 'present' | 'opened'
 }
 
 export interface Turn {
@@ -80,6 +96,8 @@ export interface Health {
     version: string
     souls: string[]
     uptime_secs: number
+    memory_state?: 'off' | 'on' | 'paused'
+    memory_paused_reason?: string | null
   } | null
   raveld_url: string
   error?: string

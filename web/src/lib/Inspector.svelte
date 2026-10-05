@@ -28,12 +28,22 @@
       const e = by.get(l.level) ?? { lines: 0, chars: 0, pending: 0 }
       e.lines++
       e.chars += [...l.text].length
-      if (l.text.includes('not summarized')) e.pending++
+      if (l.pending) e.pending++
       by.set(l.level, e)
     }
     return [...by.entries()].sort((a, b) => b[0] - a[0]).map(([level, e]) => ({ level, ...e }))
   })
   const wakePending = $derived(wakeByLevel.reduce((n, r) => n + r.pending, 0))
+  const RULES: Record<string, string> = {
+    age: 'kept whole by age',
+    present: 'leftover budget, near now',
+    opened: 'opened: no summary above',
+  }
+  const wakeRules = $derived.by(() => {
+    const by = new Map<string, number>()
+    for (const l of wake?.lines ?? []) by.set(l.rule ?? '?', (by.get(l.rule ?? '?') ?? 0) + 1)
+    return [...by.entries()].sort((a, b) => b[1] - a[1])
+  })
 
   /** The windows above the selection, nearest first, found by time: the
    *  window on each level whose span contains the selection's start. */
@@ -61,7 +71,7 @@
     <div class="intro">
       <h2 class="label">{tree.count.toLocaleString('en-US')} nodes</h2>
       <p>
-        Bottom row: single memories, one tick each, in the hour they happened. Each row above summarizes
+        Bottom row: single memories, one tick each, at the moment they happened. Each row above summarizes
         windows twice as long as the row below.
       </p>
       <p>Click any tick or bar to read it. A memory opens to the conversation turns it was made from.</p>
@@ -85,6 +95,11 @@
             {/each}
           </tbody>
         </table>
+        <p class="rules">
+          {#each wakeRules as [rule, n], i (rule)}{i ? ' · ' : ''}<span title={RULES[rule] ?? 'not stated by raveld'}
+              >{n} {rule}</span
+            >{/each}
+        </p>
         {#if wakePending}
           <p class="warn">
             {wakePending} line{wakePending === 1 ? '' : 's'} not summarized yet — drawn outlined on the timeline.
@@ -199,6 +214,7 @@
   .warn { color: var(--warn); font-size: 0.8rem; }
   .intro p { font-size: 0.82rem; color: var(--ink-soft); }
   .intro .wakehead { color: var(--ink); margin: 0 0 0.4rem; }
+  .intro .rules { font-size: 0.72rem; color: var(--ink-faint); margin: 0.35rem 0 0; }
   .wake { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
   .wake td { padding: 0.12rem 0.3rem 0.12rem 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   .wake .num { text-align: right; color: var(--ink-soft); }

@@ -2,7 +2,7 @@
   // One soul's memory tree, drawn as what it is: time spans stacked by level.
   //
   // Time runs left to right. The bottom row is single memories, one tick each,
-  // placed in the hour they happened. Every row above is a level of summary:
+  // placed at the moment they happened. Every row above is a level of summary:
   // level k+1 covers a window of 2^k hours, so each row's bars are twice as
   // long as the row below and never overlap one another. Nothing is laid out
   // by a simulation, so the same soul draws the same picture every time.
@@ -38,10 +38,6 @@
   // ---- derived geometry, rebuilt when the tree changes -------------------
   /** [lo, hi) index range of each level in the columns (they are sorted). */
   let ranges: [number, number][] = []
-  /** Where inside its hour each memory tick sits: memories sharing an hour
-   *  spread evenly across it, so a busy hour reads as a dense hour once you
-   *  zoom in, instead of one tick drawn forty times. */
-  let frac: Float32Array = new Float32Array(0)
   let index = new Map<string, number>()
 
   function prepare(t: Tree) {
@@ -51,14 +47,6 @@
       const lo = i
       while (i < t.count && t.level[i] === l) i++
       ranges[l] = [lo, i]
-    }
-    frac = new Float32Array(t.count)
-    const [m0, m1] = ranges[0] ?? [0, 0]
-    for (let a = m0; a < m1; ) {
-      let b = a
-      while (b < m1 && t.start[b] === t.start[a]) b++
-      for (let k = a; k < b; k++) frac[k] = (k - a + 0.5) / (b - a)
-      a = b
     }
     index = new Map(t.ids.map((id, k) => [id, k]))
   }
@@ -94,8 +82,10 @@
   const plotBottom = () => rowTop(0) + rowH(0)
 
   function nodeX(k: number): [number, number] {
+    // A memory's window is a single instant: the timestamp of the earliest
+    // turn it rests on. Only summaries have a span.
     if (tree.level[k] === 0) {
-      const xm = x(tree.start[k] + frac[k] * (tree.end[k] - tree.start[k]))
+      const xm = x(tree.start[k])
       return [xm, xm]
     }
     return [x(tree.start[k]), x(tree.end[k])]
@@ -160,7 +150,7 @@
         a,
         b: b > a ? b : a,
         color: ramp(i / n),
-        pending: k < 0 && l.text.includes('not summarized'),
+        pending: l.pending === true,
       }
     })
   })

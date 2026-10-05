@@ -53,6 +53,12 @@
     } catch {}
   }
 
+  function pct(a: number, b: number): string {
+    if (!b) return '0%'
+    const p = (100 * a) / b
+    return p > 99 && p < 100 ? '99%' : `${Math.round(p)}%`
+  }
+
   let draft = $state('')
   $effect(() => {
     draft = query
@@ -90,8 +96,18 @@
                     <span class="sub">{day(s.first)} → {day(s.last)}</span>
                   {:else if s.index_error}
                     <span class="sub warn">store unreadable</span>
+                  {:else if s.progress}
+                    <span class="sub">{count(s.progress.turns)} turns, none read yet</span>
                   {:else}
                     <span class="sub">synced {ago(s.last_sync)}</span>
+                  {/if}
+                  {#if s.memories && s.progress && !s.progress.done}
+                    <span
+                      class="sub partial"
+                      title="{count(s.progress.turns_read)} of {count(s.progress.turns)} turns read; {count(s.progress.pending_windows)} windows waiting for a summary"
+                    >
+                      {pct(s.progress.turns_read, s.progress.turns)} read · {count(s.progress.pending_windows)} windows waiting
+                    </span>
                   {/if}
                 </button>
               </li>
@@ -131,6 +147,11 @@
   <footer>
     {#if health?.raveld}
       <div><span class="dot live"></span>raveld {health.raveld.version} · {health.raveld_url.replace('http://', '')}</div>
+      {#if health.raveld.memory_state === 'paused'}
+        <div class="sub warn">memory index paused{health.raveld.memory_paused_reason ? ` — ${health.raveld.memory_paused_reason}` : ''}</div>
+      {:else if health.raveld.memory_state === 'off'}
+        <div class="sub">memory index off</div>
+      {/if}
     {:else}
       <div><span class="dot dead"></span>raveld not answering</div>
       <div class="sub">{health?.error ?? 'checking…'}</div>
@@ -190,6 +211,8 @@
   .soul:disabled { opacity: 0.55; cursor: default; }
   .sub { font-size: 0.72rem; color: var(--ink-faint); line-height: 1.35; }
   .warn { color: var(--warn); }
+  .partial { color: var(--warn); }
+  .soul.on .partial { color: #e0b36a; }
   input {
     width: 100%;
     font: inherit;

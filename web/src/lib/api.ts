@@ -65,6 +65,15 @@ export interface Hit {
   text: string
 }
 
+export interface Wake {
+  id: string
+  memories: number
+  summaries: number
+  /** Total characters of text in the view. */
+  chars: number
+  lines: Line[]
+}
+
 export interface Health {
   raveld: {
     ok: boolean
@@ -86,6 +95,7 @@ export const getHealth = () => json<Health>('/api/health')
 export const getSouls = () => json<Soul[]>('/api/souls')
 export const getTree = (id: string) => json<Tree>(`/api/souls/${id}/tree`)
 export const getNode = (id: string, node: string) => json<NodeView>(`/api/souls/${id}/node/${node}`)
+export const getWake = (id: string) => json<Wake>(`/api/souls/${id}/wake`)
 export const search = (id: string, q: string) =>
   json<{ query: string; hits: Hit[]; truncated: boolean }>(
     `/api/souls/${id}/search?q=${encodeURIComponent(q)}`,

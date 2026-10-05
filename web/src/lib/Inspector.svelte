@@ -4,18 +4,36 @@
   // or memories it summarizes. For a memory, it is the conversation turns it
   // was read from — the step that makes a memory checkable rather than
   // something to take on trust.
-  import type { Tree, NodeView } from './api'
+  import type { Tree, NodeView, Wake } from './api'
   import { levelName, when } from './format'
 
   interface Props {
     tree: Tree | null
+    wake: Wake | null
     selected: string | null
     node: NodeView | null
     loading: boolean
     error: string | null
     onselect: (id: string) => void
   }
-  let { tree, selected, node, loading, error, onselect }: Props = $props()
+  let { tree, wake, selected, node, loading, error, onselect }: Props = $props()
+
+  /** Where the startup view's size goes, by level. Characters, because that
+   *  is what the soul reads; tokens are an estimate at four characters each,
+   *  and labelled as one. */
+  const wakeByLevel = $derived.by(() => {
+    if (!wake) return []
+    const by = new Map<number, { lines: number; chars: number; pending: number }>()
+    for (const l of wake.lines) {
+      const e = by.get(l.level) ?? { lines: 0, chars: 0, pending: 0 }
+      e.lines++
+      e.chars += [...l.text].length
+      if (l.text.includes('not summarized')) e.pending++
+      by.set(l.level, e)
+    }
+    return [...by.entries()].sort((a, b) => b[0] - a[0]).map(([level, e]) => ({ level, ...e }))
+  })
+  const wakePending = $derived(wakeByLevel.reduce((n, r) => n + r.pending, 0))
 
   /** The windows above the selection, nearest first, found by time: the
    *  window on each level whose span contains the selection's start. */
@@ -47,6 +65,33 @@
         windows twice as long as the row below.
       </p>
       <p>Click any tick or bar to read it. A memory opens to the conversation turns it was made from.</p>
+      {#if wake}
+        <h3 class="label">wakes up with</h3>
+        <p class="wakehead">
+          {wake.lines.length} lines · {wake.chars.toLocaleString('en-US')} characters ·
+          <span title="estimated at four characters per token">≈{Math.round(wake.chars / 4).toLocaleString('en-US')} tokens</span>
+        </p>
+        <table class="wake">
+          <tbody>
+            {#each wakeByLevel as r (r.level)}
+              <tr>
+                <td>{levelName(r.level)}</td>
+                <td class="num">{r.lines}</td>
+                <td class="barcell">
+                  <span class="bar" style="width:{(100 * r.chars) / Math.max(1, wake.chars)}%"></span>
+                </td>
+                <td class="num">{Math.round((100 * r.chars) / Math.max(1, wake.chars))}%</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+        {#if wakePending}
+          <p class="warn">
+            {wakePending} line{wakePending === 1 ? '' : 's'} not summarized yet — drawn outlined on the timeline.
+          </p>
+        {/if}
+        <p>This is what <code>ravel memory</code> prints when the soul starts: fine detail near now, coarser summaries further back. On the timeline it is coloured from ochre (oldest) to green (now).</p>
+      {/if}
       {#if tree.unreadable}
         <p class="warn">{tree.unreadable} nodes could not be read and are not drawn.</p>
       {/if}
@@ -153,6 +198,12 @@
   .empty { color: var(--ink-faint); font-size: 0.8rem; }
   .warn { color: var(--warn); font-size: 0.8rem; }
   .intro p { font-size: 0.82rem; color: var(--ink-soft); }
+  .intro .wakehead { color: var(--ink); margin: 0 0 0.4rem; }
+  .wake { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+  .wake td { padding: 0.12rem 0.3rem 0.12rem 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .wake .num { text-align: right; color: var(--ink-soft); }
+  .barcell { width: 45%; }
+  .bar { display: block; height: 0.5rem; background: linear-gradient(90deg, #bd763a, #5fc05a); }
   .id { font-size: 0.72rem; color: var(--ink-faint); }
   .dates { margin: 0.2rem 0 0; font-size: 0.8rem; }
   .model { color: var(--ink-faint); }

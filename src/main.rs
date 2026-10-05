@@ -67,6 +67,7 @@ async fn main() {
         .route("/api/souls/{id}/tree", get(api_tree))
         .route("/api/souls/{id}/node/{node}", get(api_node))
         .route("/api/souls/{id}/search", get(api_search))
+        .route("/api/souls/{id}/wake", get(api_wake))
         .route("/{*asset}", get(static_asset))
         .with_state(Arc::clone(&state));
 
@@ -279,6 +280,30 @@ async fn api_node(State(s): S, AxPath((id, node)): AxPath<(String, String)>) -> 
         "open": open.unwrap_or_else(|e| json!({ "error": e })),
     }))
     .into_response()
+}
+
+/// What the soul wakes up with: raveld's own startup view, the same lines
+/// `ravel memory` prints. Fine detail near now, coarser summaries further
+/// back. Passed through unchanged except for a size count, so the page shows
+/// the view the soul actually gets and not a reconstruction of it.
+async fn api_wake(State(s): S, AxPath(id): AxPath<String>) -> Response {
+    if let Err(r) = check(&id) {
+        return r;
+    }
+    match s.raveld.get(&format!("/souls/{id}/memory")).await {
+        Ok(mut v) => {
+            let chars: usize = v
+                .get("lines")
+                .and_then(Value::as_array)
+                .map(|ls| ls.iter().filter_map(|l| l.get("text").and_then(Value::as_str)).map(|t| t.chars().count()).sum())
+                .unwrap_or(0);
+            if let Some(o) = v.as_object_mut() {
+                o.insert("chars".into(), Value::from(chars));
+            }
+            Json(v).into_response()
+        }
+        Err(e) => bad_gateway(e),
+    }
 }
 
 #[derive(serde::Deserialize)]

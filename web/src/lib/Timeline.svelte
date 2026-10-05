@@ -10,7 +10,7 @@
   // Plain canvas 2D. lUX is about 35,000 nodes, which is fine for a canvas
   // that skips what is off screen, and not worth a WebGL renderer.
   import { onMount } from 'svelte'
-  import type { Tree, NodeView } from './api'
+  import type { Tree, NodeView, Line } from './api'
   import { levelName, when, span } from './format'
 
   interface Props {
@@ -19,8 +19,10 @@
     hits: Set<string>
     onselect: (id: string | null) => void
     fetchNode: (id: string) => Promise<NodeView>
+    /** The soul's startup view, or null to hide it. */
+    wake: Line[] | null
   }
-  let { tree, selected, hits, onselect, fetchNode }: Props = $props()
+  let { tree, selected, hits, onselect, fetchNode, wake }: Props = $props()
 
   let wrap: HTMLDivElement
   let canvas: HTMLCanvasElement
@@ -113,6 +115,83 @@
     return false
   }
 
+  // ---- the startup view ---------------------------------------------------
+  // What `ravel memory` prints when the soul wakes: fine detail near now,
+  // coarser summaries further back. Coloured by its order in time, old in
+  // ochre and recent in green, after the figure in the OptMem paper. A line
+  // whose window has not been summarized yet is not in the tree; it is drawn
+  // from its own span, outlined rather than filled, so a gap in what the soul
+  // remembers is visible as a gap.
+  const STOPS = [
+    [0xbd, 0x76, 0x3a],
+    [0xc4, 0x9b, 0x46],
+    [0xb6, 0xc4, 0x55],
+    [0x5f, 0xc0, 0x5a],
+  ]
+  function ramp(u: number): string {
+    const f = Math.min(0.9999, Math.max(0, u)) * (STOPS.length - 1)
+    const i = Math.floor(f)
+    const t = f - i
+    const c = STOPS[i].map((v, j) => Math.round(v + (STOPS[i + 1][j] - v) * t))
+    return `rgb(${c[0]},${c[1]},${c[2]})`
+  }
+  interface Mark {
+    k: number
+    level: number
+    a: number
+    b: number
+    color: string
+    pending: boolean
+  }
+  const marks = $derived.by((): Mark[] => {
+    if (!wake) return []
+    // Its own id map, from the tree prop itself, so it can never be read
+    // against a tree that has not been prepared yet.
+    const at = new Map(tree.ids.map((id, k) => [id, k]))
+    const sorted = [...wake].sort((p, q) => p.from.localeCompare(q.from))
+    const n = Math.max(1, sorted.length - 1)
+    return sorted.map((l, i) => {
+      const k = at.get(l.id) ?? -1
+      const a = Date.parse(l.from) / 1000
+      const b = Date.parse(l.to) / 1000
+      return {
+        k,
+        level: l.level,
+        a,
+        b: b > a ? b : a,
+        color: ramp(i / n),
+        pending: k < 0 && l.text.includes('not summarized'),
+      }
+    })
+  })
+
+  function drawWake(c: CanvasRenderingContext2D) {
+    for (const m of marks) {
+      if (m.level > tree.top) continue
+      const y = rowTop(m.level)
+      const rh = rowH(m.level)
+      if (m.level === 0) {
+        const xm = m.k >= 0 ? nodeX(m.k)[0] : x(m.a)
+        c.fillStyle = m.color
+        c.fillRect(Math.round(xm) - 1, y + 2, 3, rh - 4)
+        continue
+      }
+      const xa = m.k >= 0 ? nodeX(m.k)[0] : x(m.a)
+      const xb = m.k >= 0 ? nodeX(m.k)[1] : x(m.b)
+      const w = Math.max(2, xb - xa - 1)
+      if (m.pending) {
+        c.strokeStyle = m.color
+        c.lineWidth = 1.5
+        c.setLineDash([3, 2])
+        c.strokeRect(xa + 0.75, y + 3.75, Math.max(1, w - 1.5), rh - 7.5)
+        c.setLineDash([])
+      } else {
+        c.fillStyle = m.color
+        c.fillRect(xa, y + 3, w, rh - 6)
+      }
+    }
+  }
+
   // ---- drawing ------------------------------------------------------------
   let raf = 0
   function request() {
@@ -121,7 +200,7 @@
 
   $effect(() => {
     // Everything that changes the picture.
-    void [W, H, t0, t1, selected, hits, hover, tree]
+    void [W, H, t0, t1, selected, hits, hover, tree, marks]
     request()
   })
 
@@ -145,7 +224,7 @@
     const faint = css('--ink-faint') || '#8a8a8a'
     const rule = css('--rule') || '#e3e3e3'
     const tint = css('--paper-tint') || '#f7f7f5'
-    const hit = css('--hit') || '#d9480f'
+    const hit = css('--hit') || '#2459c4'
     const sel = selected !== null ? (index.get(selected) ?? -1) : -1
 
     // Row bands and labels.
@@ -174,6 +253,9 @@
     // Summaries first, memories on top; within each, plain then related then
     // hits then selection, so the things you asked about are never buried.
     for (let pass = 0; pass < 4; pass++) {
+      // The startup view sits above the plain tree and its family, and
+      // below search hits and the selection.
+      if (pass === 2) drawWake(c)
       for (let l = tree.top; l >= 0; l--) {
         const [lo, hi] = ranges[l]
         const y = rowTop(l)

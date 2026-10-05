@@ -3,8 +3,8 @@
   import LeftRail from './lib/LeftRail.svelte'
   import Timeline from './lib/Timeline.svelte'
   import Inspector from './lib/Inspector.svelte'
-  import { getSouls, getHealth, getTree, getNode, search as runSearch } from './lib/api'
-  import type { Soul, Tree, NodeView, Health, Hit } from './lib/api'
+  import { getSouls, getHealth, getTree, getNode, getWake, search as runSearch } from './lib/api'
+  import type { Soul, Tree, NodeView, Health, Hit, Wake } from './lib/api'
   import { count, day } from './lib/format'
 
   let souls = $state<Soul[]>([])
@@ -23,6 +23,23 @@
   let truncated = $state(false)
   let searching = $state(false)
   let timeline = $state<ReturnType<typeof Timeline> | null>(null)
+  let wake = $state<Wake | null>(null)
+  let wakeError = $state<string | null>(null)
+  let showWake = $state(readPref())
+
+  function readPref(): boolean {
+    try {
+      return localStorage.getItem('ravel-ui.wake') !== 'off'
+    } catch {
+      return true
+    }
+  }
+  function toggleWake() {
+    showWake = !showWake
+    try {
+      localStorage.setItem('ravel-ui.wake', showWake ? 'on' : 'off')
+    } catch {}
+  }
 
   const hitSet = $derived(new Set(hits.map((h) => h.id)))
 
@@ -61,8 +78,17 @@
     hits = []
     query = ''
     cache = new Map()
+    wake = null
+    wakeError = null
     loadingTree = true
     writeHash()
+    getWake(s.id)
+      .then((w) => {
+        if (current?.id === s.id) wake = w
+      })
+      .catch((e) => {
+        if (current?.id === s.id) wakeError = (e as Error).message
+      })
     try {
       const t = await getTree(s.id)
       if (current?.id !== s.id) return
@@ -193,7 +219,26 @@
     {:else if loadingTree}
       <p class="state">reading {current?.name}'s memory tree…</p>
     {:else if tree}
-      <Timeline bind:this={timeline} {tree} {selected} hits={hitSet} onselect={select} {fetchNode} />
+      <Timeline
+        bind:this={timeline}
+        {tree}
+        {selected}
+        hits={hitSet}
+        onselect={select}
+        {fetchNode}
+        wake={showWake && wake ? wake.lines : null}
+      />
+      <div class="wakebar">
+        <label>
+          <input type="checkbox" checked={showWake} onchange={toggleWake} />
+          what {current?.name} wakes up with
+        </label>
+        {#if wake}
+          <span class="ramp" aria-hidden="true"></span><span class="sub">older → now</span>
+        {:else if wakeError}
+          <span class="sub warn">{wakeError}</span>
+        {/if}
+      </div>
     {:else}
       <p class="state">pick a soul</p>
     {/if}
@@ -201,6 +246,7 @@
 
   <Inspector
     {tree}
+    wake={wake}
     {selected}
     {node}
     loading={loadingNode}
@@ -232,5 +278,24 @@
   .right { margin-left: auto; color: var(--ink-soft); }
   main { position: relative; min-width: 0; min-height: 0; }
   .state { padding: 2rem; color: var(--ink-soft); }
+  .wakebar {
+    position: absolute;
+    left: 74px;
+    top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    background: var(--paper);
+    padding: 0 0.4rem 0 0;
+  }
+  .wakebar label { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+  .ramp {
+    width: 4.5rem;
+    height: 0.55rem;
+    background: linear-gradient(90deg, #bd763a, #c49b46, #b6c455, #5fc05a);
+  }
+  .sub { color: var(--ink-faint); }
   .warn { color: var(--warn); white-space: pre-wrap; }
 </style>
